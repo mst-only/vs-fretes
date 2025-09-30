@@ -1,1 +1,7 @@
+[build]
+  command = "echo 'Netlify build complete'" 
+  publish = "." # Pasta raiz
 
+[functions]
+  directory = "netlify/functions"
+  
