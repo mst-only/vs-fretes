@@ -107,15 +107,21 @@
             // 1. Carregar Distâncias
             const distResp = await fetch(API_DISTANCIAS);
             const distJson = await distResp.json();
-            distanciasData = distJson.distância; // O nome da propriedade pode ser 'distancia' ou 'distância'
+            distanciasData = distJson.distância || distJson.distancias; // Tenta ler 'distância' ou 'distancias'
 
             if (!distanciasData || distanciasData.length === 0) {
-                 throw new Error("Erro: Tabela de distâncias vazia.");
+                 throw new Error("Erro: Tabela de distâncias vazia ou nome da aba incorreto.");
             }
 
             // 2. Processar Bairros Únicos para os Selects
             distanciasData.forEach(item => {
-                const [origem, destino] = item.rota.split('-');
+                // Tenta ler o campo da rota, verificando diferentes capitalizações (rota, Rota, etc.)
+                const rotaCompleta = item.rota || item.Rota || item.RÓTA || item.ROTA || item.RotaKm;
+                
+                if (!rotaCompleta || typeof rotaCompleta !== 'string') return; // Pula se não for string ou não encontrar
+                
+                // O split que separa o bairro de origem e destino
+                const [origem, destino] = rotaCompleta.split('-');
                 if (origem) bairrosUnicos.add(origem.trim());
                 if (destino) bairrosUnicos.add(destino.trim());
             });
@@ -141,15 +147,20 @@
             const tarifasJson = await tarifasResp.json();
             
             // O Sheety geralmente retorna um array, pegamos o primeiro item
-            const primeiraTarifa = tarifasJson.tarifas[0]; 
+            const primeiraTarifa = tarifasJson.tarifas[0] || tarifasJson.Tarifas[0]; 
 
             if (!primeiraTarifa) {
-                throw new Error("Erro: Tabela de tarifas vazia.");
+                throw new Error("Erro: Tabela de tarifas vazia ou nome da aba incorreto.");
             }
             
-            // Tratamento de valores: o Sheety retorna números com ponto (internacional)
-            tarifasData.precoKm = parseFloat(primeiraTarifa.precoKm);
-            tarifasData.tarifaFixa = parseFloat(primeiraTarifa.tarifaFixa);
+            // Tentativa de ler o campo de Preço/KM com diferentes nomes
+            const precoKmStr = primeiraTarifa.precoKm || primeiraTarifa.preco_km || primeiraTarifa.PrecoKm || primeiraTarifa.PRECOKM;
+            // Tentativa de ler o campo de Tarifa Fixa com diferentes nomes
+            const tarifaFixaStr = primeiraTarifa.tarifaFixa || primeiraTarifa.tarifa_fixa || primeiraTarifa.TarifaFixa || primeiraTarifa.TARIFAFIXA;
+
+            // Tratamento de valores: Forçamos a leitura como número (o Sheety envia com ponto)
+            tarifasData.precoKm = parseFloat(precoKmStr);
+            tarifasData.tarifaFixa = parseFloat(tarifaFixaStr);
 
             if (isNaN(tarifasData.precoKm) || isNaN(tarifasData.tarifaFixa)) {
                 resultadoDiv.innerHTML = 'ERRO: Verifique se o KM e o valor fixo na aba **Tarifas** estão com o **ponto decimal** (ex: 2.50) e sem outros caracteres, e se o Sheety está lendo corretamente.';
@@ -182,8 +193,13 @@
 
         // 1. Procurar a Rota na lista (ida ou volta)
         const rotaEncontrada = distanciasData.find(item => {
+            // Tenta ler o campo da rota, verificando diferentes capitalizações
+            const rotaCompleta = item.rota || item.Rota || item.RÓTA || item.ROTA || item.RotaKm;
+
+            if (!rotaCompleta || typeof rotaCompleta !== 'string') return false;
+
             // Normaliza a rota para garantir que a ordem dos bairros não importe na busca
-            const rotaA = item.rota.split('-').map(s => s.trim());
+            const rotaA = rotaCompleta.split('-').map(s => s.trim());
             const rotaB = [origem, destino];
             
             // Compara as rotas independentemente da ordem (CENTRO-VILA ou VILA-CENTRO)
@@ -200,17 +216,16 @@
         }
         
         // 2. Extrair KM e garantir que seja um número válido
-        let km = rotaEncontrada.km;
+        let km = rotaEncontrada.km || rotaEncontrada.Km || rotaEncontrada.KM;
         
-        // Como você trocou para vírgula, mas o Sheety envia como texto com ponto,
-        // ajustamos para o JS interpretar (se for string).
+        // Forçamos a substituição de vírgula por ponto para o JavaScript interpretar
         if (typeof km === 'string') {
             km = km.replace(',', '.'); 
         }
         km = parseFloat(km);
         
         if (isNaN(km)) {
-            resultadoDiv.innerHTML = 'ERRO de KM. Verifique se a Coluna B (KM) na aba **Distâncias** tem APENAS números com VÍRGULA (ex: 1,5) e se não há texto sobrando.';
+            resultadoDiv.innerHTML = 'ERRO de KM. Verifique se a Coluna B (KM) na aba **Distâncias** tem APENAS números (com vírgula no Sheets, ou ponto no Sheety).';
             return;
         }
 
