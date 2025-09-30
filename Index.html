@@ -1,86 +1,232 @@
-
 <!DOCTYPE html>
 <html lang="pt-BR">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>VS FRETES | Cálculo de Frete</title>
-    <link rel="stylesheet" href="style.css">
+    <title>Calculadora de Frete - Guará</title>
+    <style>
+        /* Estilos CSS para a aparência da calculadora */
+        body {
+            font-family: Arial, sans-serif;
+            margin: 20px;
+            background-color: #f4f7f6;
+        }
+        .container {
+            max-width: 400px;
+            margin: auto;
+            background: white;
+            padding: 25px;
+            border-radius: 8px;
+            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
+        }
+        h2 {
+            text-align: center;
+            color: #333;
+            margin-bottom: 20px;
+        }
+        label {
+            display: block;
+            margin-bottom: 5px;
+            font-weight: bold;
+            color: #555;
+        }
+        select, button {
+            width: 100%;
+            padding: 10px;
+            margin-bottom: 15px;
+            border-radius: 4px;
+            border: 1px solid #ccc;
+            box-sizing: border-box;
+            font-size: 16px;
+        }
+        button {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+        button:hover {
+            background-color: #0056b3;
+        }
+        #resultado {
+            margin-top: 20px;
+            padding: 15px;
+            border-radius: 4px;
+            background-color: #e9ecef;
+            text-align: center;
+            font-size: 1.1em;
+            font-weight: bold;
+            color: #007bff;
+            min-height: 40px; /* Garante espaço mesmo vazio */
+            border: 1px dashed #ced4da;
+        }
+        .loading {
+            color: #ffc107;
+        }
+    </style>
 </head>
 <body>
-    <header>
-        <h1>VS FRETES</h1>
-        <a href="admin.html" id="admin-link">Área do Administrador</a>
-    </header>
 
-    <main class="container">
-        <h2>Simulação de Frete</h2>
+<div class="container">
+    <h2>🚚 Calculadora de Frete</h2>
+    <p>Guaratinguetá</p>
+
+    <label for="origem">Bairro de Origem:</label>
+    <select id="origem">
+        </select>
+
+    <label for="destino">Bairro de Destino:</label>
+    <select id="destino">
+        </select>
+
+    <button onclick="calcularFrete()">CALCULAR</button>
+
+    <div id="resultado">Aguardando cálculo...</div>
+</div>
+
+<script>
+    // Seus links de API do Sheety (NÃO ALTERAR)
+    const API_TARIFAS = "https://api.sheety.co/584f8d803255fff2ffc61a068356aa20/planilhaVsFretes/tarifas";
+    const API_DISTANCIAS = "https://api.sheety.co/584f8d803255fff2ffc61a068356aa20/planilhaVsFretes/distância";
+
+    let distanciasData = [];
+    let tarifasData = {};
+    let bairrosUnicos = new Set();
+    
+    // Elementos do DOM
+    const origemSelect = document.getElementById('origem');
+    const destinoSelect = document.getElementById('destino');
+    const resultadoDiv = document.getElementById('resultado');
+
+    // Função para carregar os dados das planilhas
+    async function carregarDados() {
+        resultadoDiv.innerHTML = '<span class="loading">Carregando dados...</span>';
         
-        <section class="item-selection">
-            <h3>1. Item a ser Transportado</h3>
-            <label for="item-select">Selecione o Item Mais Comum:</label>
-            <select id="item-select">
-                <option value="Fogão">Fogão</option>
-                <option value="Geladeira">Geladeira</option>
-                <option value="Cama">Cama (Casal/Solteiro)</option>
-                <option value="Máquina de Lavar">Máquina de Lavar</option>
-                <option value="Outro">Outro (Especifique abaixo)</option>
-            </select>
+        try {
+            // 1. Carregar Distâncias
+            const distResp = await fetch(API_DISTANCIAS);
+            const distJson = await distResp.json();
+            distanciasData = distJson.distância; // O nome da propriedade pode ser 'distancia' ou 'distância'
+
+            if (!distanciasData || distanciasData.length === 0) {
+                 throw new Error("Erro: Tabela de distâncias vazia.");
+            }
+
+            // 2. Processar Bairros Únicos para os Selects
+            distanciasData.forEach(item => {
+                const [origem, destino] = item.rota.split('-');
+                if (origem) bairrosUnicos.add(origem.trim());
+                if (destino) bairrosUnicos.add(destino.trim());
+            });
+
+            // Converte o Set para Array e ordena
+            const bairrosArray = Array.from(bairrosUnicos).sort();
+
+            // 3. Preencher Selects
+            bairrosArray.forEach(bairro => {
+                const optionOrigem = document.createElement('option');
+                optionOrigem.value = bairro;
+                optionOrigem.textContent = bairro;
+                origemSelect.appendChild(optionOrigem);
+
+                const optionDestino = document.createElement('option');
+                optionDestino.value = bairro;
+                optionDestino.textContent = bairro;
+                destinoSelect.appendChild(optionDestino);
+            });
+
+            // 4. Carregar Tarifas
+            const tarifasResp = await fetch(API_TARIFAS);
+            const tarifasJson = await tarifasResp.json();
             
-            <label for="item-outro" id="label-outro" style="display: none;">Especifique o item:</label>
-            <input type="text" id="item-outro" style="display: none;" placeholder="Ex: Sofá de 3 Lugares">
-        </section>
+            // O Sheety geralmente retorna um array, pegamos o primeiro item
+            const primeiraTarifa = tarifasJson.tarifas[0]; 
 
-        <section class="endereco-form">
-            <h3>2. Endereço de Coleta (Origem)</h3>
-            <div class="endereco-group" id="coleta-group">
-                <input type="text" id="coleta-cep" placeholder="CEP *" required>
-                <input type="text" id="coleta-endereco" placeholder="Endereço *" required>
-                <input type="number" id="coleta-numero" placeholder="Número *" required>
-                <input type="text" id="coleta-complemento" placeholder="Complemento">
-                <input type="text" id="coleta-bairro" placeholder="Bairro *" required list="bairros-guara">
-            </div>
+            if (!primeiraTarifa) {
+                throw new Error("Erro: Tabela de tarifas vazia.");
+            }
+            
+            // Tratamento de valores: o Sheety retorna números com ponto (internacional)
+            tarifasData.precoKm = parseFloat(primeiraTarifa.precoKm);
+            tarifasData.tarifaFixa = parseFloat(primeiraTarifa.tarifaFixa);
 
-            <h3>3. Endereço de Entrega (Destino)</h3>
-            <div class="endereco-group" id="entrega-group">
-                <input type="text" id="entrega-cep" placeholder="CEP *" required>
-                <input type="text" id="entrega-endereco" placeholder="Endereço *" required>
-                <input type="number" id="entrega-numero" placeholder="Número *" required>
-                <input type="text" id="entrega-complemento" placeholder="Complemento">
-                <input type="text" id="entrega-bairro" placeholder="Bairro *" required list="bairros-guara">
-            </div>
-        </section>
+            if (isNaN(tarifasData.precoKm) || isNaN(tarifasData.tarifaFixa)) {
+                resultadoDiv.innerHTML = 'ERRO: Verifique se o KM e o valor fixo na aba **Tarifas** estão com o **ponto decimal** (ex: 2.50) e sem outros caracteres, e se o Sheety está lendo corretamente.';
+                return; 
+            }
 
-        <section class="info-adicionais">
-            <h3>4. Informações Adicionais</h3>
-            <input type="text" id="nome-usuario" placeholder="Seu Nome Completo *" required>
-            <input type="time" id="horario-frete" placeholder="Horário Desejado para o Frete *">
-        </section>
+            resultadoDiv.innerHTML = 'Pronto para calcular!';
 
-        <button id="calcular-frete-btn">CALCULAR FRETE</button>
+        } catch (error) {
+            console.error("Erro ao carregar dados:", error);
+            resultadoDiv.innerHTML = `Falha ao carregar dados. Verifique a **publicação** da planilha e os **links do Sheety**. Detalhe: ${error.message}`;
+        }
+    }
+
+    // Função principal de cálculo
+    function calcularFrete() {
+        const origem = origemSelect.value;
+        const destino = destinoSelect.value;
+        resultadoDiv.innerHTML = '<span class="loading">Calculando...</span>';
+
+        if (!origem || !destino) {
+            resultadoDiv.innerHTML = 'Selecione Origem e Destino.';
+            return;
+        }
+
+        if (origem === destino) {
+            resultadoDiv.innerHTML = 'Os bairros são iguais. Selecione bairros diferentes.';
+            return;
+        }
+
+        // 1. Procurar a Rota na lista (ida ou volta)
+        const rotaEncontrada = distanciasData.find(item => {
+            // Normaliza a rota para garantir que a ordem dos bairros não importe na busca
+            const rotaA = item.rota.split('-').map(s => s.trim());
+            const rotaB = [origem, destino];
+            
+            // Compara as rotas independentemente da ordem (CENTRO-VILA ou VILA-CENTRO)
+            if (rotaA.length === 2 && rotaB.length === 2) {
+                 return (rotaA[0] === rotaB[0] && rotaA[1] === rotaB[1]) || 
+                        (rotaA[0] === rotaB[1] && rotaA[1] === rotaB[0]);
+            }
+            return false;
+        });
+
+        if (!rotaEncontrada) {
+            resultadoDiv.innerHTML = `Rota não encontrada: **${origem}** para **${destino}**. Verifique a ortografia exata na sua planilha!`;
+            return;
+        }
         
-        <div id="resultado-calculo" class="resultado" style="display: none;">
-            <h4>Resultado da Simulação</h4>
-            <p id="distancia-calculada"></p>
-            <p id="valor-calculado"></p>
-            <button id="solicitar-frete-btn">SOLICITAR FRETE (WhatsApp)</button>
-            <button id="novo-frete-btn">NOVA SIMULAÇÃO</button>
-        </div>
+        // 2. Extrair KM e garantir que seja um número válido
+        let km = rotaEncontrada.km;
+        
+        // Como você trocou para vírgula, mas o Sheety envia como texto com ponto,
+        // ajustamos para o JS interpretar (se for string).
+        if (typeof km === 'string') {
+            km = km.replace(',', '.'); 
+        }
+        km = parseFloat(km);
+        
+        if (isNaN(km)) {
+            resultadoDiv.innerHTML = 'ERRO de KM. Verifique se a Coluna B (KM) na aba **Distâncias** tem APENAS números com VÍRGULA (ex: 1,5) e se não há texto sobrando.';
+            return;
+        }
 
-        <datalist id="bairros-guara">
-            <option value="Centro">
-            <option value="Vila Brasil">
-            <option value="Pedregulho">
-            <option value="Jardim do Vale">
-            <option value="Santa Rita">
-        </datalist>
+        // 3. Realizar o Cálculo
+        const custoTotal = (km * tarifasData.precoKm) + tarifasData.tarifaFixa;
 
-    </main>
+        // 4. Exibir Resultado
+        resultadoDiv.innerHTML = `
+            Distância: **${km.toFixed(1).replace('.', ',')} KM**<br>
+            Custo Total: **R$ ${custoTotal.toFixed(2).replace('.', ',')}**
+        `;
+    }
 
-    <footer>
-        <p>&copy; 2024 VS FRETES. Todos os direitos reservados.</p>
-    </footer>
+    // Inicia o carregamento dos dados quando a página é aberta
+    carregarDados();
+</script>
 
-    <script src="script.js"></script>
 </body>
 </html>
