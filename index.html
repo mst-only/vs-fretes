@@ -107,21 +107,25 @@
             // 1. Carregar Distâncias
             const distResp = await fetch(API_DISTANCIAS);
             const distJson = await distResp.json();
-            distanciasData = distJson.distância || distJson.distancias; // Tenta ler 'distância' ou 'distancias'
+            distanciasData = distJson.distância || distJson.distancias; 
 
             if (!distanciasData || distanciasData.length === 0) {
-                 throw new Error("Erro: Tabela de distâncias vazia ou nome da aba incorreto.");
+                 throw new Error("Erro: Tabela de distâncias vazia.");
             }
 
             // 2. Processar Bairros Únicos para os Selects
             distanciasData.forEach(item => {
-                // Tenta ler o campo da rota, verificando diferentes capitalizações (rota, Rota, etc.)
+                // Tenta ler o campo da rota com diferentes capitalizações
                 const rotaCompleta = item.rota || item.Rota || item.RÓTA || item.ROTA || item.RotaKm;
                 
-                if (!rotaCompleta || typeof rotaCompleta !== 'string') return; // Pula se não for string ou não encontrar
+                if (!rotaCompleta || typeof rotaCompleta !== 'string') return;
                 
-                // O split que separa o bairro de origem e destino
-                const [origem, destino] = rotaCompleta.split('-');
+                // Regex para limpar espaços e quebras de linha e garantir o formato: BAIRRO-BAIRRO
+                const rotaLimpa = rotaCompleta.replace(/[\r\n\s]+/g, ' ').trim(); 
+                
+                // Usa o split na rota limpa
+                const [origem, destino] = rotaLimpa.split('-');
+                
                 if (origem) bairrosUnicos.add(origem.trim());
                 if (destino) bairrosUnicos.add(destino.trim());
             });
@@ -150,20 +154,27 @@
             const primeiraTarifa = tarifasJson.tarifas[0] || tarifasJson.Tarifas[0]; 
 
             if (!primeiraTarifa) {
-                throw new Error("Erro: Tabela de tarifas vazia ou nome da aba incorreto.");
+                throw new Error("Erro: Tabela de tarifas vazia.");
             }
             
-            // Tentativa de ler o campo de Preço/KM com diferentes nomes
+            // Tenta ler o Preço/KM com diferentes nomes
             const precoKmStr = primeiraTarifa.precoKm || primeiraTarifa.preco_km || primeiraTarifa.PrecoKm || primeiraTarifa.PRECOKM;
-            // Tentativa de ler o campo de Tarifa Fixa com diferentes nomes
+            // Tenta ler a Tarifa Fixa com diferentes nomes
             const tarifaFixaStr = primeiraTarifa.tarifaFixa || primeiraTarifa.tarifa_fixa || primeiraTarifa.TarifaFixa || primeiraTarifa.TARIFAFIXA;
 
-            // Tratamento de valores: Forçamos a leitura como número (o Sheety envia com ponto)
-            tarifasData.precoKm = parseFloat(precoKmStr);
-            tarifasData.tarifaFixa = parseFloat(tarifaFixaStr);
+            // Tratamento de valores: usamos Regex para extrair apenas números e o ponto
+            const parseValue = (str) => {
+                if (typeof str !== 'string') str = String(str);
+                // Remove tudo que não for dígito ou ponto, e substitui vírgula por ponto.
+                const cleanedStr = str.replace(',', '.').replace(/[^\d.]/g, ''); 
+                return parseFloat(cleanedStr);
+            };
+
+            tarifasData.precoKm = parseValue(precoKmStr);
+            tarifasData.tarifaFixa = parseValue(tarifaFixaStr);
 
             if (isNaN(tarifasData.precoKm) || isNaN(tarifasData.tarifaFixa)) {
-                resultadoDiv.innerHTML = 'ERRO: Verifique se o KM e o valor fixo na aba **Tarifas** estão com o **ponto decimal** (ex: 2.50) e sem outros caracteres, e se o Sheety está lendo corretamente.';
+                resultadoDiv.innerHTML = 'ERRO: O sistema não conseguiu extrair os números de KM/Preço. Garanta que na aba **Tarifas** só existam números (ex: 2.50) nos campos de preço.';
                 return; 
             }
 
@@ -193,13 +204,16 @@
 
         // 1. Procurar a Rota na lista (ida ou volta)
         const rotaEncontrada = distanciasData.find(item => {
-            // Tenta ler o campo da rota, verificando diferentes capitalizações
+            // Tenta ler o campo da rota
             const rotaCompleta = item.rota || item.Rota || item.RÓTA || item.ROTA || item.RotaKm;
 
             if (!rotaCompleta || typeof rotaCompleta !== 'string') return false;
 
+            // Limpa a rota para comparação
+            const rotaLimpa = rotaCompleta.replace(/[\r\n\s]+/g, ' ').trim();
+            
             // Normaliza a rota para garantir que a ordem dos bairros não importe na busca
-            const rotaA = rotaCompleta.split('-').map(s => s.trim());
+            const rotaA = rotaLimpa.split('-').map(s => s.trim());
             const rotaB = [origem, destino];
             
             // Compara as rotas independentemente da ordem (CENTRO-VILA ou VILA-CENTRO)
@@ -218,14 +232,11 @@
         // 2. Extrair KM e garantir que seja um número válido
         let km = rotaEncontrada.km || rotaEncontrada.Km || rotaEncontrada.KM;
         
-        // Forçamos a substituição de vírgula por ponto para o JavaScript interpretar
-        if (typeof km === 'string') {
-            km = km.replace(',', '.'); 
-        }
-        km = parseFloat(km);
+        // Usa a função de limpeza Regex para garantir que o KM seja um número
+        km = parseValue(km);
         
         if (isNaN(km)) {
-            resultadoDiv.innerHTML = 'ERRO de KM. Verifique se a Coluna B (KM) na aba **Distâncias** tem APENAS números (com vírgula no Sheets, ou ponto no Sheety).';
+            resultadoDiv.innerHTML = 'ERRO de KM. Verifique se a Coluna B (KM) na aba **Distâncias** tem APENAS números.';
             return;
         }
 
@@ -238,6 +249,14 @@
             Custo Total: **R$ ${custoTotal.toFixed(2).replace('.', ',')}**
         `;
     }
+    
+    // Função auxiliar para limpar strings e retornar números
+    const parseValue = (str) => {
+        if (typeof str !== 'string') str = String(str);
+        // Remove tudo que não for dígito ou ponto, e substitui vírgula por ponto.
+        const cleanedStr = str.replace(',', '.').replace(/[^\d.]/g, ''); 
+        return parseFloat(cleanedStr);
+    };
 
     // Inicia o carregamento dos dados quando a página é aberta
     carregarDados();
