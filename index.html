@@ -3,264 +3,55 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculadora de Frete - Guará</title>
-    <style>
-        /* Estilos CSS para a aparência da calculadora */
-        body {
-            font-family: Arial, sans-serif;
-            margin: 20px;
-            background-color: #f4f7f6;
-        }
-        .container {
-            max-width: 400px;
-            margin: auto;
-            background: white;
-            padding: 25px;
-            border-radius: 8px;
-            box-shadow: 0 4px 8px rgba(0, 0, 0, 0.1);
-        }
-        h2 {
-            text-align: center;
-            color: #333;
-            margin-bottom: 20px;
-        }
-        label {
-            display: block;
-            margin-bottom: 5px;
-            font-weight: bold;
-            color: #555;
-        }
-        select, button {
-            width: 100%;
-            padding: 10px;
-            margin-bottom: 15px;
-            border-radius: 4px;
-            border: 1px solid #ccc;
-            box-sizing: border-box;
-            font-size: 16px;
-        }
-        button {
-            background-color: #007bff;
-            color: white;
-            border: none;
-            cursor: pointer;
-            transition: background-color 0.3s ease;
-        }
-        button:hover {
-            background-color: #0056b3;
-        }
-        #resultado {
-            margin-top: 20px;
-            padding: 15px;
-            border-radius: 4px;
-            background-color: #e9ecef;
-            text-align: center;
-            font-size: 1.1em;
-            font-weight: bold;
-            color: #007bff;
-            min-height: 40px; /* Garante espaço mesmo vazio */
-            border: 1px dashed #ced4da;
-        }
-        .loading {
-            color: #ffc107;
-        }
-    </style>
+    <title>Calculadora de Frete Rápido</title>
+    <link rel="stylesheet" href="css/style.css">
 </head>
 <body>
 
-<div class="container">
-    <h2>🚚 Calculadora de Frete</h2>
-    <p>Guaratinguetá</p>
+    <header>
+        <h1>Frete Rápido e Seguro</h1>
+        <p>Preencha os dados abaixo para calcular seu frete e solicitar orçamento.</p>
+    </header>
 
-    <label for="origem">Bairro de Origem:</label>
-    <select id="origem">
-        </select>
+    <main>
+        <form id="form-frete">
 
-    <label for="destino">Bairro de Destino:</label>
-    <select id="destino">
-        </select>
+            <section class="campo-itens">
+                <h2>1. O que será transportado?</h2>
+                <div class="checkboxes">
+                    <label><input type="checkbox" name="item" value="Fogão"> Fogão</label>
+                    <label><input type="checkbox" name="item" value="Geladeira"> Geladeira</label>
+                    <label><input type="checkbox" name="item" value="Máquina de Lavar"> Máquina de Lavar</label>
+                    <label><input type="checkbox" name="item" value="Cama"> Cama (Casal/Solteiro)</label>
+                    <label><input type="checkbox" name="item" value="Sofá"> Sofá (até 3 lugares)</label>
+                    <label><input type="checkbox" name="item" value="Outro"> Outro (detalhar no final)</label>
+                </div>
+                <input type="text" id="outros-detalhes" placeholder="Detalhe outros itens (opcional)">
+            </section>
 
-    <button onclick="calcularFrete()">CALCULAR</button>
+            <section class="campo-enderecos">
+                <h2>2. Endereços</h2>
+                <input type="text" id="endereco-coleta" placeholder="Endereço de Coleta (Rua, Número, Cidade)" required>
+                <input type="text" id="endereco-entrega" placeholder="Endereço de Entrega (Rua, Número, Cidade)" required>
+                <button type="button" id="btn-calcular-distancia">Calcular Distância</button>
+            </section>
 
-    <div id="resultado">Aguardando cálculo...</div>
-</div>
+            <section class="campo-data">
+                <h2>3. Data e Horário</h2>
+                <input type="date" id="data-frete" required>
+                <input type="time" id="hora-frete" required>
+            </section>
 
-<script>
-    // Seus links de API do Sheety (NÃO ALTERAR)
-    const API_TARIFAS = "https://api.sheety.co/584f8d803255fff2ffc61a068356aa20/planilhaVsFretes/tarifas";
-    const API_DISTANCIAS = "https://api.sheety.co/584f8d803255fff2ffc61a068356aa20/planilhaVsFretes/distância";
+            <section id="resultado-calculo" style="display: none;">
+                <h2>4. Resumo e Orçamento</h2>
+                <p>Distância Total: <strong id="distancia-km">0 km</strong></p>
+                <p>Valor Estimado: <strong id="valor-estimado">R$ 0,00</strong></p>
+            </section>
 
-    let distanciasData = [];
-    let tarifasData = {};
-    let bairrosUnicos = new Set();
-    
-    // Elementos do DOM
-    const origemSelect = document.getElementById('origem');
-    const destinoSelect = document.getElementById('destino');
-    const resultadoDiv = document.getElementById('resultado');
+            <button type="submit" id="btn-whatsapp" disabled>Enviar Orçamento via WhatsApp</button>
+        </form>
+    </main>
 
-    // Função para carregar os dados das planilhas
-    async function carregarDados() {
-        resultadoDiv.innerHTML = '<span class="loading">Carregando dados...</span>';
-        
-        try {
-            // 1. Carregar Distâncias
-            const distResp = await fetch(API_DISTANCIAS);
-            const distJson = await distResp.json();
-            distanciasData = distJson.distância || distJson.distancias; 
-
-            if (!distanciasData || distanciasData.length === 0) {
-                 throw new Error("Erro: Tabela de distâncias vazia.");
-            }
-
-            // 2. Processar Bairros Únicos para os Selects
-            distanciasData.forEach(item => {
-                // Tenta ler o campo da rota com diferentes capitalizações
-                const rotaCompleta = item.rota || item.Rota || item.RÓTA || item.ROTA || item.RotaKm;
-                
-                if (!rotaCompleta || typeof rotaCompleta !== 'string') return;
-                
-                // Regex para limpar espaços e quebras de linha e garantir o formato: BAIRRO-BAIRRO
-                const rotaLimpa = rotaCompleta.replace(/[\r\n\s]+/g, ' ').trim(); 
-                
-                // Usa o split na rota limpa
-                const [origem, destino] = rotaLimpa.split('-');
-                
-                if (origem) bairrosUnicos.add(origem.trim());
-                if (destino) bairrosUnicos.add(destino.trim());
-            });
-
-            // Converte o Set para Array e ordena
-            const bairrosArray = Array.from(bairrosUnicos).sort();
-
-            // 3. Preencher Selects
-            bairrosArray.forEach(bairro => {
-                const optionOrigem = document.createElement('option');
-                optionOrigem.value = bairro;
-                optionOrigem.textContent = bairro;
-                origemSelect.appendChild(optionOrigem);
-
-                const optionDestino = document.createElement('option');
-                optionDestino.value = bairro;
-                optionDestino.textContent = bairro;
-                destinoSelect.appendChild(optionDestino);
-            });
-
-            // 4. Carregar Tarifas
-            const tarifasResp = await fetch(API_TARIFAS);
-            const tarifasJson = await tarifasResp.json();
-            
-            // O Sheety geralmente retorna um array, pegamos o primeiro item
-            const primeiraTarifa = tarifasJson.tarifas[0] || tarifasJson.Tarifas[0]; 
-
-            if (!primeiraTarifa) {
-                throw new Error("Erro: Tabela de tarifas vazia.");
-            }
-            
-            // Tenta ler o Preço/KM com diferentes nomes
-            const precoKmStr = primeiraTarifa.precoKm || primeiraTarifa.preco_km || primeiraTarifa.PrecoKm || primeiraTarifa.PRECOKM;
-            // Tenta ler a Tarifa Fixa com diferentes nomes
-            const tarifaFixaStr = primeiraTarifa.tarifaFixa || primeiraTarifa.tarifa_fixa || primeiraTarifa.TarifaFixa || primeiraTarifa.TARIFAFIXA;
-
-            // Tratamento de valores: usamos Regex para extrair apenas números e o ponto
-            const parseValue = (str) => {
-                if (typeof str !== 'string') str = String(str);
-                // Remove tudo que não for dígito ou ponto, e substitui vírgula por ponto.
-                const cleanedStr = str.replace(',', '.').replace(/[^\d.]/g, ''); 
-                return parseFloat(cleanedStr);
-            };
-
-            tarifasData.precoKm = parseValue(precoKmStr);
-            tarifasData.tarifaFixa = parseValue(tarifaFixaStr);
-
-            if (isNaN(tarifasData.precoKm) || isNaN(tarifasData.tarifaFixa)) {
-                resultadoDiv.innerHTML = 'ERRO: O sistema não conseguiu extrair os números de KM/Preço. Garanta que na aba **Tarifas** só existam números (ex: 2.50) nos campos de preço.';
-                return; 
-            }
-
-            resultadoDiv.innerHTML = 'Pronto para calcular!';
-
-        } catch (error) {
-            console.error("Erro ao carregar dados:", error);
-            resultadoDiv.innerHTML = `Falha ao carregar dados. Verifique a **publicação** da planilha e os **links do Sheety**. Detalhe: ${error.message}`;
-        }
-    }
-
-    // Função principal de cálculo
-    function calcularFrete() {
-        const origem = origemSelect.value;
-        const destino = destinoSelect.value;
-        resultadoDiv.innerHTML = '<span class="loading">Calculando...</span>';
-
-        if (!origem || !destino) {
-            resultadoDiv.innerHTML = 'Selecione Origem e Destino.';
-            return;
-        }
-
-        if (origem === destino) {
-            resultadoDiv.innerHTML = 'Os bairros são iguais. Selecione bairros diferentes.';
-            return;
-        }
-
-        // 1. Procurar a Rota na lista (ida ou volta)
-        const rotaEncontrada = distanciasData.find(item => {
-            // Tenta ler o campo da rota
-            const rotaCompleta = item.rota || item.Rota || item.RÓTA || item.ROTA || item.RotaKm;
-
-            if (!rotaCompleta || typeof rotaCompleta !== 'string') return false;
-
-            // Limpa a rota para comparação
-            const rotaLimpa = rotaCompleta.replace(/[\r\n\s]+/g, ' ').trim();
-            
-            // Normaliza a rota para garantir que a ordem dos bairros não importe na busca
-            const rotaA = rotaLimpa.split('-').map(s => s.trim());
-            const rotaB = [origem, destino];
-            
-            // Compara as rotas independentemente da ordem (CENTRO-VILA ou VILA-CENTRO)
-            if (rotaA.length === 2 && rotaB.length === 2) {
-                 return (rotaA[0] === rotaB[0] && rotaA[1] === rotaB[1]) || 
-                        (rotaA[0] === rotaB[1] && rotaA[1] === rotaB[0]);
-            }
-            return false;
-        });
-
-        if (!rotaEncontrada) {
-            resultadoDiv.innerHTML = `Rota não encontrada: **${origem}** para **${destino}**. Verifique a ortografia exata na sua planilha!`;
-            return;
-        }
-        
-        // 2. Extrair KM e garantir que seja um número válido
-        let km = rotaEncontrada.km || rotaEncontrada.Km || rotaEncontrada.KM;
-        
-        // Usa a função de limpeza Regex para garantir que o KM seja um número
-        km = parseValue(km);
-        
-        if (isNaN(km)) {
-            resultadoDiv.innerHTML = 'ERRO de KM. Verifique se a Coluna B (KM) na aba **Distâncias** tem APENAS números.';
-            return;
-        }
-
-        // 3. Realizar o Cálculo
-        const custoTotal = (km * tarifasData.precoKm) + tarifasData.tarifaFixa;
-
-        // 4. Exibir Resultado
-        resultadoDiv.innerHTML = `
-            Distância: **${km.toFixed(1).replace('.', ',')} KM**<br>
-            Custo Total: **R$ ${custoTotal.toFixed(2).replace('.', ',')}**
-        `;
-    }
-    
-    // Função auxiliar para limpar strings e retornar números
-    const parseValue = (str) => {
-        if (typeof str !== 'string') str = String(str);
-        // Remove tudo que não for dígito ou ponto, e substitui vírgula por ponto.
-        const cleanedStr = str.replace(',', '.').replace(/[^\d.]/g, ''); 
-        return parseFloat(cleanedStr);
-    };
-
-    // Inicia o carregamento dos dados quando a página é aberta
-    carregarDados();
-</script>
-
+    <script src="js/script.js"></script>
 </body>
 </html>
