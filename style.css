@@ -2,65 +2,97 @@ body {
     font-family: Arial, sans-serif;
     background-color: #f4f4f9;
     color: #333;
-    padding: 20px;
-    line-height: 1.6;
+    margin: 0;
+    padding: 0;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
 }
 
-main {
-    max-width: 700px;
-    margin: 0 auto;
-    background: #fff;
+.container {
+    background-color: #fff;
     padding: 30px;
-    border-radius: 8px;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.1);
-}
-
-h1, h2 {
-    color: #007bff; /* Cor principal, pode ser azul (ou a cor do seu freteiro!) */
-}
-
-input[type="text"], input[type="date"], input[type="time"] {
+    border-radius: 10px;
+    box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
     width: 100%;
-    padding: 10px;
-    margin-bottom: 15px;
-    border: 1px solid #ccc;
-    border-radius: 4px;
-    box-sizing: border-box; /* Garante que o padding não aumente a largura total */
+    max-width: 400px;
 }
 
-.checkboxes label {
-    display: block;
-    margin-bottom: 8px;
+h1 {
+    text-align: center;
+    color: #007bff;
+    margin-bottom: 30px;
 }
 
-button {
-    background-color: #28a745; /* Cor para os botões */
-    color: white;
-    padding: 12px 20px;
-    border: none;
-    border-radius: 4px;
-    cursor: pointer;
-    width: 100%;
-    font-size: 16px;
-    margin-top: 15px;
-    transition: background-color 0.3s;
-}
-
-button:hover:not(:disabled) {
-    background-color: #218838;
-}
-
-button:disabled {
-    background-color: #ccc;
-    cursor: not-allowed;
-}
-
-/* Estilos específicos para os botões de cálculo e WhatsApp */
-#btn-calcular-distancia {
-    background-color: #007bff;
+.form-group {
     margin-bottom: 20px;
 }
 
-#btn-calcular-distancia:hover {
-    background-color: #0056b3;
+label {
+    display: block;
+    margin-bottom: 8px;
+    font-weight: bold;
+}
+
+select {
+    width: 100%;
+    padding: 10px;
+    border: 1px solid #ccc;
+    border-radius: 5px;
+    box-sizing: border-box;
+    font-size: 16px;
+    background-color: #fff;
+    cursor: pointer;
+}
+
+button {
+    width: 100%;
+    padding: 12px;
+    background-color: #28a745;
+    color: white;
+    border: none;
+    border-radius: 5px;
+    font-size: 18px;
+    cursor: pointer;
+    transition: background-color 0.3s;
+}
+
+button:hover {
+    background-color: #218838;
+}
+
+.resultado {
+    margin-top: 25px;
+    padding: 15px;
+    border: 1px solid #ddd;
+    border-radius: 5px;
+    text-align: center;
+}
+
+.resultado p {
+    margin: 5px 0;
+    font-size: 1.1em;
+}
+
+.resultado strong {
+    font-size: 1.2em;
+}
+
+.sucesso {
+    background-color: #e6ffed;
+    color: #155724;
+    border-color: #c3e6cb;
+    padding: 10px;
+    border-radius: 5px;
+}
+
+.erro {
+    color: #dc3545;
+    font-weight: bold;
+}
+
+.carregando {
+    color: #007bff;
+    font-style: italic;
 }
