@@ -3,55 +3,35 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Calculadora de Frete Rápido</title>
-    <link rel="stylesheet" href="css/style.css">
+    <title>Calculadora de Frete - Guaratinguetá</title>
+    <link rel="stylesheet" href="style.css">
 </head>
 <body>
 
-    <header>
-        <h1>Frete Rápido e Seguro</h1>
-        <p>Preencha os dados abaixo para calcular seu frete e solicitar orçamento.</p>
-    </header>
+    <div class="container">
+        <h1>Calculadora de Frete Guará (API)</h1>
 
-    <main>
-        <form id="form-frete">
+        <div class="form-group">
+            <label for="bairro-coleta">Local de Coleta:</label>
+            <select id="bairro-coleta" required>
+                <option value="" disabled selected>Selecione o bairro</option>
+            </select>
+        </div>
 
-            <section class="campo-itens">
-                <h2>1. O que será transportado?</h2>
-                <div class="checkboxes">
-                    <label><input type="checkbox" name="item" value="Fogão"> Fogão</label>
-                    <label><input type="checkbox" name="item" value="Geladeira"> Geladeira</label>
-                    <label><input type="checkbox" name="item" value="Máquina de Lavar"> Máquina de Lavar</label>
-                    <label><input type="checkbox" name="item" value="Cama"> Cama (Casal/Solteiro)</label>
-                    <label><input type="checkbox" name="item" value="Sofá"> Sofá (até 3 lugares)</label>
-                    <label><input type="checkbox" name="item" value="Outro"> Outro (detalhar no final)</label>
-                </div>
-                <input type="text" id="outros-detalhes" placeholder="Detalhe outros itens (opcional)">
-            </section>
+        <div class="form-group">
+            <label for="bairro-entrega">Local de Entrega:</label>
+            <select id="bairro-entrega" required>
+                <option value="" disabled selected>Selecione o bairro</option>
+            </select>
+        </div>
 
-            <section class="campo-enderecos">
-                <h2>2. Endereços</h2>
-                <input type="text" id="endereco-coleta" placeholder="Endereço de Coleta (Rua, Número, Cidade)" required>
-                <input type="text" id="endereco-entrega" placeholder="Endereço de Entrega (Rua, Número, Cidade)" required>
-                <button type="button" id="btn-calcular-distancia">Calcular Distância</button>
-            </section>
+        <button onclick="calcularFrete()">Calcular Frete</button>
 
-            <section class="campo-data">
-                <h2>3. Data e Horário</h2>
-                <input type="date" id="data-frete" required>
-                <input type="time" id="hora-frete" required>
-            </section>
+        <div id="resultado-frete" class="resultado">
+            <p>Selecione os bairros e clique em Calcular.</p>
+        </div>
+    </div>
 
-            <section id="resultado-calculo" style="display: none;">
-                <h2>4. Resumo e Orçamento</h2>
-                <p>Distância Total: <strong id="distancia-km">0 km</strong></p>
-                <p>Valor Estimado: <strong id="valor-estimado">R$ 0,00</strong></p>
-            </section>
-
-            <button type="submit" id="btn-whatsapp" disabled>Enviar Orçamento via WhatsApp</button>
-        </form>
-    </main>
-
-    <script src="js/script.js"></script>
+    <script src="script.js"></script>
 </body>
 </html>
