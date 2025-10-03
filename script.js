@@ -1,4 +1,4 @@
-// js/script.js - Lógica Final, APIs e Cálculo Fixo por Faixa de KM
+// js/script.js - Lógica Final com Conexão Reforçada
 
 // 1. REGRA DE PRECIFICAÇÃO FIXA POR FAIXA DE KM
 function calcularPrecoFixo(distanciaKm) {
@@ -11,7 +11,6 @@ function calcularPrecoFixo(distanciaKm) {
     } else if (distanciaKm <= 10.0) {
         return 600.00;
     } else {
-        // Para fretes acima de 10km, retorna um valor que sinaliza que está fora da tabela
         return -1; 
     }
 }
@@ -19,6 +18,7 @@ function calcularPrecoFixo(distanciaKm) {
 
 // 2. LISTA COMPLETA DE BAIRROS (125 Itens)
 const BAIRROS_DISPONIVEIS = [
+    // MANTENHA ESTA LISTA IGUAL À SUA VERSÃO MAIS RECENTE
     "Alto das Almas", "Área Rural de Guaratinguetá", "Aroeira", "Beira Rio II", "Belveder Clube dos 500", 
     "Bom Jardim I", "Bom Jardim II", "Bom Jardim III", "Bosque dos Ipês", "Campinho", 
     "Campo do Galvão", "CECAP", "Centro", "Chácara Selles", "Chácaras Piagui", 
@@ -51,43 +51,70 @@ const BAIRROS_DISPONIVEIS = [
 async function getCoordinates(bairro) {
     const query = `${bairro}, Guaratinguetá, SP, Brasil`;
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
-
-    const response = await fetch(url, {
-        headers: {
-            // Necessário para evitar bloqueio da API
-            'User-Agent': 'CalculadoraFreteGuaratingueta-V1' 
-        }
-    });
-
-    if (!response.ok) {
-        throw new Error(`[ERRO API] Servidor de localização (Nominatim) não respondeu. Status: ${response.status}`);
-    }
-
-    const data = await response.json();
     
-    if (data.length > 0) {
-        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+    // Configura um Controller para tempo limite (TIMEOUT)
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 8000); // 8 segundos
+
+    try {
+        const response = await fetch(url, {
+            headers: { 'User-Agent': 'CalculadoraFreteGuaratingueta-V1' },
+            signal: controller.signal // Aplica o timeout
+        });
+        
+        clearTimeout(timeoutId); // Cancela o timeout se a resposta for rápida
+        
+        if (!response.ok) {
+            throw new Error(`Servidor de localização (Nominatim) não respondeu. Status: ${response.status}`);
+        }
+
+        const data = await response.json();
+        
+        if (data.length > 0) {
+            return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+        }
+        throw new Error(`[ERRO Localização] Não foi possível localizar o ponto central de: ${bairro}.`); 
+        
+    } catch (error) {
+        clearTimeout(timeoutId);
+        if (error.name === 'AbortError') {
+            throw new Error(`[ERRO Localização] A API de localização demorou demais para responder (Timeout).`);
+        }
+        throw new Error(`[ERRO Localização] Falha na comunicação com o servidor. Tente novamente.`);
     }
-    throw new Error(`[ERRO Localização] Não foi possível localizar o ponto central de: ${bairro}. Verifique a digitação.`); 
 }
 
-// API 2: OSRM (Routing) - Calcula a Rota Rodoviária (AGORA ROBUSTA)
+// API 2: OSRM (Routing) - Calcula a Rota Rodoviária
 async function obterDistanciaReal(origemBairro, destinoBairro) {
     const coordOrigem = await getCoordinates(origemBairro);
     const coordDestino = await getCoordinates(destinoBairro);
     
     const url = `https://router.project-osrm.org/route/v1/driving/${coordOrigem.lon},${coordOrigem.lat};${coordDestino.lon},${coordDestino.lat}?overview=false`;
     
-    const response = await fetch(url);
-    const data = await response.json();
-    
-    // VERIFICAÇÃO ROBUSTA: Se a API não retornar uma rota válida, lançamos um erro claro.
-    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0 || !data.routes[0].summary || !data.routes[0].summary.total_distance) {
-        throw new Error(`O cálculo falhou. Não foi possível traçar uma rota válida entre ${origemBairro} e ${destinoBairro}.`);
-    }
+    try {
+        const response = await fetch(url);
+        
+        if (!response.ok) {
+            throw new Error(`[ERRO API] Servidor de Rota (OSRM) não respondeu. Status: ${response.status}`);
+        }
 
-    const distanciaMetros = data.routes[0].summary.total_distance; 
-    return distanciaMetros / 1000; // Converte para KM
+        const data = await response.json();
+        
+        // VERIFICAÇÃO ROBUSTA
+        if (data.code !== 'Ok' || !data.routes || data.routes.length === 0 || !data.routes[0].summary || !data.routes[0].summary.total_distance) {
+            throw new Error(`O cálculo falhou. Não foi possível traçar uma rota válida entre ${origemBairro} e ${destinoBairro}.`);
+        }
+
+        const distanciaMetros = data.routes[0].summary.total_distance; 
+        return distanciaMetros / 1000; // Converte para KM
+        
+    } catch (error) {
+        // Trata erros de rede mais genéricos
+        if (error.message.includes('O cálculo falhou')) {
+             throw error; // Lança o erro específico da API
+        }
+        throw new Error(`[ERRO Rota] Falha de comunicação de rede. Verifique sua conexão ou tente novamente.`);
+    }
 }
 
 
@@ -96,7 +123,6 @@ async function obterDistanciaReal(origemBairro, destinoBairro) {
 // Função que preenche o datalist
 function preencherDatalist() {
     const datalist = document.getElementById('bairros-lista');
-    
     if (datalist) {
         BAIRROS_DISPONIVEIS.sort().forEach(bairro => { 
             const option = document.createElement('option');
@@ -109,10 +135,8 @@ function preencherDatalist() {
 
 // Função que calcula e exibe o frete
 async function calcularFrete(event) {
-    // Impede que a página recarregue ao submeter o formulário
     event.preventDefault(); 
     
-    // Busca os valores dos campos INPUT
     const nomeColeta = document.getElementById('bairro-coleta-input').value.trim();
     const nomeEntrega = document.getElementById('bairro-entrega-input').value.trim();
 
@@ -123,7 +147,6 @@ async function calcularFrete(event) {
         return;
     }
     
-    // Valida se o bairro digitado existe na lista
     if (!BAIRROS_DISPONIVEIS.includes(nomeColeta) || !BAIRROS_DISPONIVEIS.includes(nomeEntrega)) {
         resultadoDiv.innerHTML = `<p class="erro">Um ou ambos os bairros digitados não estão na lista de áreas atendidas.</p>`;
         return;
@@ -164,7 +187,6 @@ document.addEventListener('DOMContentLoaded', () => {
     preencherDatalist();
 
     const form = document.getElementById('frete-form');
-    // Adiciona o 'Listener' que espera o formulário ser SUBMETIDO (clique no botão)
     if (form) {
         form.addEventListener('submit', calcularFrete);
     }
