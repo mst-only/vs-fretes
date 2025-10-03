@@ -1,4 +1,4 @@
-// js/script.js - Lógica Principal, APIs e Cálculo Fixo por Faixa de KM
+// js/script.js - Lógica Final, APIs e Cálculo Fixo por Faixa de KM
 
 // 1. REGRA DE PRECIFICAÇÃO FIXA POR FAIXA DE KM
 function calcularPrecoFixo(distanciaKm) {
@@ -11,8 +11,8 @@ function calcularPrecoFixo(distanciaKm) {
     } else if (distanciaKm <= 10.0) {
         return 600.00;
     } else {
-        // Para fretes acima de 10km
-        return -1; // Sinaliza que o frete está fora da área de cobertura ou da tabela.
+        // Para fretes acima de 10km, retorna um valor que sinaliza que está fora da tabela
+        return -1; 
     }
 }
 
@@ -54,7 +54,8 @@ async function getCoordinates(bairro) {
 
     const response = await fetch(url, {
         headers: {
-            'User-Agent': 'CalculadoraFreteGuaratingueta-V1' // Necessário para evitar bloqueio
+            // Necessário para evitar bloqueio da API
+            'User-Agent': 'CalculadoraFreteGuaratingueta-V1' 
         }
     });
 
@@ -70,47 +71,50 @@ async function getCoordinates(bairro) {
     throw new Error(`[ERRO Localização] Não foi possível localizar o ponto central de: ${bairro}. Verifique a digitação.`); 
 }
 
-// API 2: OSRM (Routing) - Calcula a Rota Rodoviária
+// API 2: OSRM (Routing) - Calcula a Rota Rodoviária (AGORA ROBUSTA)
 async function obterDistanciaReal(origemBairro, destinoBairro) {
     const coordOrigem = await getCoordinates(origemBairro);
     const coordDestino = await getCoordinates(destinoBairro);
     
-    // Formato OSRM: lon,lat;lon,lat
     const url = `https://router.project-osrm.org/route/v1/driving/${coordOrigem.lon},${coordOrigem.lat};${coordDestino.lon},${coordDestino.lat}?overview=false`;
     
     const response = await fetch(url);
     const data = await response.json();
     
-    if (data.routes && data.routes.length > 0) {
-        const distanciaMetros = data.routes[0].summary.total_distance; 
-        return distanciaMetros / 1000; // Converte para KM
+    // VERIFICAÇÃO ROBUSTA: Se a API não retornar uma rota válida, lançamos um erro claro.
+    if (data.code !== 'Ok' || !data.routes || data.routes.length === 0 || !data.routes[0].summary || !data.routes[0].summary.total_distance) {
+        throw new Error(`O cálculo falhou. Não foi possível traçar uma rota válida entre ${origemBairro} e ${destinoBairro}.`);
     }
-    
-    throw new Error(`[ERRO Rota] Não foi possível calcular a rota rodoviária.`);
+
+    const distanciaMetros = data.routes[0].summary.total_distance; 
+    return distanciaMetros / 1000; // Converte para KM
 }
 
 
-// FUNÇÕES DE SUPORTE
-document.addEventListener('DOMContentLoaded', () => {
-    // Preenche o <datalist> para a digitação/seleção
+// --- LÓGICA PRINCIPAL DE EXECUÇÃO ---
+
+// Função que preenche o datalist
+function preencherDatalist() {
     const datalist = document.getElementById('bairros-lista');
     
-    BAIRROS_DISPONIVEIS.sort().forEach(bairro => { 
-        const option = document.createElement('option');
-        option.value = bairro; 
-        datalist.appendChild(option);
-    });
-});
+    if (datalist) {
+        BAIRROS_DISPONIVEIS.sort().forEach(bairro => { 
+            const option = document.createElement('option');
+            option.value = bairro; 
+            datalist.appendChild(option);
+        });
+    }
+}
 
 
-// FUNÇÃO PRINCIPAL QUE CALCULA O FRETE
-async function calcularFrete() {
+// Função que calcula e exibe o frete
+async function calcularFrete(event) {
+    // Impede que a página recarregue ao submeter o formulário
+    event.preventDefault(); 
+    
     // Busca os valores dos campos INPUT
-    const inputColeta = document.getElementById('bairro-coleta-input'); 
-    const inputEntrega = document.getElementById('bairro-entrega-input');
-
-    const nomeColeta = inputColeta ? inputColeta.value.trim() : '';
-    const nomeEntrega = inputEntrega ? inputEntrega.value.trim() : '';
+    const nomeColeta = document.getElementById('bairro-coleta-input').value.trim();
+    const nomeEntrega = document.getElementById('bairro-entrega-input').value.trim();
 
     const resultadoDiv = document.getElementById('resultado-frete');
 
@@ -133,13 +137,9 @@ async function calcularFrete() {
     resultadoDiv.innerHTML = `<p class="carregando">Calculando a rota em tempo real...</p>`;
 
     try {
-        // 1. OBTÉM A DISTÂNCIA REAL POR API
         const distanciaKm = await obterDistanciaReal(nomeColeta, nomeEntrega); 
-
-        // 2. APLICA A NOVA LÓGICA DE PREÇO FIXO
         const valorFrete = calcularPrecoFixo(distanciaKm);
         
-        // 3. VERIFICA SE ESTÁ FORA DA TABELA
         if (valorFrete === -1) {
             resultadoDiv.innerHTML = `
                 <p>Distância Rodoviária: <strong>${distanciaKm.toFixed(2)} KM</strong></p>
@@ -148,7 +148,6 @@ async function calcularFrete() {
             return;
         }
 
-        // 4. EXIBE O RESULTADO
         resultadoDiv.innerHTML = `
             <p>Distância Rodoviária: <strong>${distanciaKm.toFixed(2)} KM</strong></p>
             <p class="sucesso">Valor do Frete (Fixo): <strong>R$ ${valorFrete.toFixed(2).replace('.', ',')}</strong></p>
@@ -158,3 +157,15 @@ async function calcularFrete() {
         resultadoDiv.innerHTML = `<p class="erro">Erro no cálculo: ${error.message}</p>`;
     }
 }
+
+
+// Evento que GARANTE que tudo funcionará após o carregamento da página
+document.addEventListener('DOMContentLoaded', () => {
+    preencherDatalist();
+
+    const form = document.getElementById('frete-form');
+    // Adiciona o 'Listener' que espera o formulário ser SUBMETIDO (clique no botão)
+    if (form) {
+        form.addEventListener('submit', calcularFrete);
+    }
+});
