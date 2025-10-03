@@ -9,22 +9,24 @@
 <body>
 
     <div class="container">
-        <h1>Calculadora de Frete Guará (Tabelada)</h1>
+        <h1>Calculadora de Frete Guará (Tabelada - Manual)</h1>
 
-        <div class="form-group">
-            <label for="bairro-coleta-input">Local de Coleta:</label>
-            <input list="bairros-lista" id="bairro-coleta-input" placeholder="Digite ou selecione o bairro" required>
-        </div>
+        <form id="frete-form">
+            <div class="form-group">
+                <label for="bairro-coleta-input">Local de Coleta:</label>
+                <input list="bairros-lista" id="bairro-coleta-input" placeholder="Digite ou selecione o bairro" required>
+            </div>
 
-        <div class="form-group">
-            <label for="bairro-entrega-input">Local de Entrega:</label>
-            <input list="bairros-lista" id="bairro-entrega-input" placeholder="Digite ou selecione o bairro" required>
-        </div>
-        
-        <datalist id="bairros-lista">
-            </datalist>
+            <div class="form-group">
+                <label for="bairro-entrega-input">Local de Entrega:</label>
+                <input list="bairros-lista" id="bairro-entrega-input" placeholder="Digite ou selecione o bairro" required>
+            </div>
+            
+            <datalist id="bairros-lista">
+                </datalist>
 
-        <button onclick="calcularFrete()">Calcular Frete</button>
+            <button type="submit">Calcular Frete</button>
+        </form>
 
         <div id="resultado-frete" class="resultado">
             <p>Selecione os bairros e clique em Calcular.</p>
