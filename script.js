@@ -1,8 +1,21 @@
-// js/script.js - Lógica Principal e Integração com APIs Abertas (SEM CHAVE)
+// js/script.js - Lógica Principal, APIs e Cálculo Fixo por Faixa de KM
 
-// 1. CONFIGURAÇÃO DE PREÇOS
-const TARIFA_BASE = 5.00; // Seu custo fixo por entrega (em Reais)
-const CUSTO_POR_KM = 2.00; // Seu custo por KM rodado (em Reais)
+// 1. REGRA DE PRECIFICAÇÃO FIXA POR FAIXA DE KM
+function calcularPrecoFixo(distanciaKm) {
+    if (distanciaKm <= 1.5) {
+        return 150.00;
+    } else if (distanciaKm <= 5.0) {
+        return 250.00;
+    } else if (distanciaKm <= 7.0) {
+        return 400.00;
+    } else if (distanciaKm <= 10.0) {
+        return 600.00;
+    } else {
+        // Para fretes acima de 10km
+        return -1; // Sinaliza que o frete está fora da área de cobertura ou da tabela.
+    }
+}
+
 
 // 2. LISTA COMPLETA DE BAIRROS (125 Itens)
 const BAIRROS_DISPONIVEIS = [
@@ -34,12 +47,21 @@ const BAIRROS_DISPONIVEIS = [
 ]; 
 
 
-// API 1: Nominatim (Geocoding - Conversão de Endereço para Coordenadas)
+// API 1: Nominatim (Geocoding) - Converte Nome em Coordenadas
 async function getCoordinates(bairro) {
     const query = `${bairro}, Guaratinguetá, SP, Brasil`;
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
 
-    const response = await fetch(url);
+    const response = await fetch(url, {
+        headers: {
+            'User-Agent': 'CalculadoraFreteGuaratingueta-V1' // Necessário para evitar bloqueio
+        }
+    });
+
+    if (!response.ok) {
+        throw new Error(`[ERRO API] Servidor de localização (Nominatim) não respondeu. Status: ${response.status}`);
+    }
+
     const data = await response.json();
     
     if (data.length > 0) {
@@ -48,12 +70,12 @@ async function getCoordinates(bairro) {
     throw new Error(`[ERRO Localização] Não foi possível localizar o ponto central de: ${bairro}. Verifique a digitação.`); 
 }
 
-// API 2: OSRM (Routing - Cálculo de Rota Rodoviária)
+// API 2: OSRM (Routing) - Calcula a Rota Rodoviária
 async function obterDistanciaReal(origemBairro, destinoBairro) {
     const coordOrigem = await getCoordinates(origemBairro);
     const coordDestino = await getCoordinates(destinoBairro);
     
-    // OSRM usa o formato: lon,lat;lon,lat
+    // Formato OSRM: lon,lat;lon,lat
     const url = `https://router.project-osrm.org/route/v1/driving/${coordOrigem.lon},${coordOrigem.lat};${coordDestino.lon},${coordDestino.lat}?overview=false`;
     
     const response = await fetch(url);
@@ -70,10 +92,10 @@ async function obterDistanciaReal(origemBairro, destinoBairro) {
 
 // FUNÇÕES DE SUPORTE
 document.addEventListener('DOMContentLoaded', () => {
-    // FUNÇÃO CORRIGIDA: Preenche o <datalist> para permitir a digitação/seleção
+    // Preenche o <datalist> para a digitação/seleção
     const datalist = document.getElementById('bairros-lista');
     
-    BAIRROS_DISPONIVEIS.sort().forEach(bairro => { // Organiza em ordem alfabética
+    BAIRROS_DISPONIVEIS.sort().forEach(bairro => { 
         const option = document.createElement('option');
         option.value = bairro; 
         datalist.appendChild(option);
@@ -83,9 +105,12 @@ document.addEventListener('DOMContentLoaded', () => {
 
 // FUNÇÃO PRINCIPAL QUE CALCULA O FRETE
 async function calcularFrete() {
-    // ATENÇÃO: Agora pegamos o valor dos novos campos INPUT
-    const nomeColeta = document.getElementById('bairro-coleta-input').value.trim();
-    const nomeEntrega = document.getElementById('bairro-entrega-input').value.trim();
+    // Busca os valores dos campos INPUT
+    const inputColeta = document.getElementById('bairro-coleta-input'); 
+    const inputEntrega = document.getElementById('bairro-entrega-input');
+
+    const nomeColeta = inputColeta ? inputColeta.value.trim() : '';
+    const nomeEntrega = inputEntrega ? inputEntrega.value.trim() : '';
 
     const resultadoDiv = document.getElementById('resultado-frete');
 
@@ -94,7 +119,7 @@ async function calcularFrete() {
         return;
     }
     
-    // VERIFICA SE O BAIRRO DIGITADO É VÁLIDO (ESTÁ NA SUA LISTA)
+    // Valida se o bairro digitado existe na lista
     if (!BAIRROS_DISPONIVEIS.includes(nomeColeta) || !BAIRROS_DISPONIVEIS.includes(nomeEntrega)) {
         resultadoDiv.innerHTML = `<p class="erro">Um ou ambos os bairros digitados não estão na lista de áreas atendidas.</p>`;
         return;
@@ -111,17 +136,25 @@ async function calcularFrete() {
         // 1. OBTÉM A DISTÂNCIA REAL POR API
         const distanciaKm = await obterDistanciaReal(nomeColeta, nomeEntrega); 
 
-        // 2. APLICA A FÓRMULA DE PREÇO
-        const valorFrete = TARIFA_BASE + (distanciaKm * CUSTO_POR_KM);
+        // 2. APLICA A NOVA LÓGICA DE PREÇO FIXO
+        const valorFrete = calcularPrecoFixo(distanciaKm);
         
-        // 3. EXIBE O RESULTADO
+        // 3. VERIFICA SE ESTÁ FORA DA TABELA
+        if (valorFrete === -1) {
+            resultadoDiv.innerHTML = `
+                <p>Distância Rodoviária: <strong>${distanciaKm.toFixed(2)} KM</strong></p>
+                <p class="erro">Esta rota de <strong>${distanciaKm.toFixed(2)} KM</strong> está fora da tabela de fretes (limite: 10 KM).</p>
+            `;
+            return;
+        }
+
+        // 4. EXIBE O RESULTADO
         resultadoDiv.innerHTML = `
             <p>Distância Rodoviária: <strong>${distanciaKm.toFixed(2)} KM</strong></p>
-            <p class="sucesso">Valor do Frete: <strong>R$ ${valorFrete.toFixed(2).replace('.', ',')}</strong></p>
+            <p class="sucesso">Valor do Frete (Fixo): <strong>R$ ${valorFrete.toFixed(2).replace('.', ',')}</strong></p>
         `;
     
     } catch (error) {
-        // Exibe o erro da API ou de localização
         resultadoDiv.innerHTML = `<p class="erro">Erro no cálculo: ${error.message}</p>`;
     }
 }
