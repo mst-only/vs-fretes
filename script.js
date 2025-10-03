@@ -35,9 +35,7 @@ const BAIRROS_DISPONIVEIS = [
 
 
 // API 1: Nominatim (Geocoding - Conversão de Endereço para Coordenadas)
-// Não requer chave de API.
 async function getCoordinates(bairro) {
-    // Adiciona "Guaratinguetá, SP, Brasil" para garantir a precisão
     const query = `${bairro}, Guaratinguetá, SP, Brasil`;
     const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
 
@@ -45,26 +43,23 @@ async function getCoordinates(bairro) {
     const data = await response.json();
     
     if (data.length > 0) {
-        // Retorna as coordenadas [latitude, longitude]
         return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
     }
-    throw new Error(`[ERRO Localização] Não foi possível localizar o ponto central de: ${bairro}.`); 
+    throw new Error(`[ERRO Localização] Não foi possível localizar o ponto central de: ${bairro}. Verifique a digitação.`); 
 }
 
 // API 2: OSRM (Routing - Cálculo de Rota Rodoviária)
-// Não requer chave de API.
 async function obterDistanciaReal(origemBairro, destinoBairro) {
     const coordOrigem = await getCoordinates(origemBairro);
     const coordDestino = await getCoordinates(destinoBairro);
     
-    // O OSRM usa o formato: lon,lat;lon,lat
+    // OSRM usa o formato: lon,lat;lon,lat
     const url = `https://router.project-osrm.org/route/v1/driving/${coordOrigem.lon},${coordOrigem.lat};${coordDestino.lon},${coordDestino.lat}?overview=false`;
     
     const response = await fetch(url);
     const data = await response.json();
     
     if (data.routes && data.routes.length > 0) {
-        // O OSRM devolve a distância em metros
         const distanciaMetros = data.routes[0].summary.total_distance; 
         return distanciaMetros / 1000; // Converte para KM
     }
@@ -75,33 +70,33 @@ async function obterDistanciaReal(origemBairro, destinoBairro) {
 
 // FUNÇÕES DE SUPORTE
 document.addEventListener('DOMContentLoaded', () => {
-    // Preenche os dropdowns com a lista completa de bairros
-    const preencherDropdown = (id) => {
-        const select = document.getElementById(id);
-        BAIRROS_DISPONIVEIS.sort().forEach(bairro => { // Organiza a lista em ordem alfabética
-            const option = document.createElement('option');
-            option.value = bairro; 
-            option.textContent = bairro; 
-            select.appendChild(option);
-        });
-    };
-
-    preencherDropdown('bairro-coleta');
-    preencherDropdown('bairro-entrega');
+    // FUNÇÃO CORRIGIDA: Preenche o <datalist> para permitir a digitação/seleção
+    const datalist = document.getElementById('bairros-lista');
+    
+    BAIRROS_DISPONIVEIS.sort().forEach(bairro => { // Organiza em ordem alfabética
+        const option = document.createElement('option');
+        option.value = bairro; 
+        datalist.appendChild(option);
+    });
 });
 
 
 // FUNÇÃO PRINCIPAL QUE CALCULA O FRETE
 async function calcularFrete() {
-    const selectColeta = document.getElementById('bairro-coleta');
-    const selectEntrega = document.getElementById('bairro-entrega');
-    const nomeColeta = selectColeta.value;
-    const nomeEntrega = selectEntrega.value;
+    // ATENÇÃO: Agora pegamos o valor dos novos campos INPUT
+    const nomeColeta = document.getElementById('bairro-coleta-input').value.trim();
+    const nomeEntrega = document.getElementById('bairro-entrega-input').value.trim();
 
     const resultadoDiv = document.getElementById('resultado-frete');
 
     if (!nomeColeta || !nomeEntrega) {
-        resultadoDiv.innerHTML = `<p class="erro">Por favor, selecione os bairros de Coleta e Entrega.</p>`;
+        resultadoDiv.innerHTML = `<p class="erro">Por favor, preencha ambos os campos de Coleta e Entrega.</p>`;
+        return;
+    }
+    
+    // VERIFICA SE O BAIRRO DIGITADO É VÁLIDO (ESTÁ NA SUA LISTA)
+    if (!BAIRROS_DISPONIVEIS.includes(nomeColeta) || !BAIRROS_DISPONIVEIS.includes(nomeEntrega)) {
+        resultadoDiv.innerHTML = `<p class="erro">Um ou ambos os bairros digitados não estão na lista de áreas atendidas.</p>`;
         return;
     }
 
@@ -110,7 +105,6 @@ async function calcularFrete() {
         return;
     }
 
-    // Exibe mensagem de carregamento enquanto a API trabalha
     resultadoDiv.innerHTML = `<p class="carregando">Calculando a rota em tempo real...</p>`;
 
     try {
