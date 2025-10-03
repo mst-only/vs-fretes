@@ -17,34 +17,34 @@ function calcularPrecoFixo(distanciaKm) {
 
 
 // 2. LISTA DE BAIRROS ATENDIDOS
-// ATENÇÃO: Mantenha apenas os bairros que você cadastrar na matriz no passo 3.
+// Preencha esta lista com todos os bairros.
 const BAIRROS_DISPONIVEIS = [
     "Centro", "Pedregulho", "Vila Paraíba", "Vila Brasil", "CECAP", 
     "Jardim do Vale", "São Benedito", "Campo do Galvão", "Engenheiro Neiva"
-    // Adicione o restante dos bairros aqui, um de cada vez.
+    // Adicione o restante dos bairros que você atende aqui.
 ]; 
 
 
 // 3. MATRIZ MANUAL DE DISTÂNCIAS - VOCÊ PRECISA PREENCHER AQUI!
-// Chave deve ser: "BAIRRO A|BAIRRO B" (em ordem alfabética, com os nomes EXATOS da lista acima)
-// Valor deve ser: a distância rodoviária em KM (Ex: 2.5)
+// Chave: "BAIRRO A|BAIRRO B" (em ordem alfabética)
+// Valor: Distância rodoviária em KM.
 const DISTANCIAS_MANUAIS = {
-    // EXEMPLOS PREENCHIDOS:
+    // EXEMPLOS:
     "CECAP|Centro": 3.5,
     "Centro|Pedregulho": 2.5, 
     "São Benedito|Vila Brasil": 1.2,
     "CECAP|Vila Paraíba": 5.0,
-    // Adicione todas as outras combinações (coleta-entrega) aqui.
+    // Insira todas as outras combinações (coleta-entrega) aqui.
 };
 
 
 // FUNÇÃO AUXILIAR: Encontra a distância na matriz
 function obterDistanciaNaMatriz(origem, destino) {
-    // Garante que a chave seja sempre a mesma, independente da ordem (A|B ou B|A)
+    // Garante que a chave seja sempre a mesma (ordem alfabética).
     const bairrosOrdenados = [origem, destino].sort();
     const chave = `${bairrosOrdenados[0]}|${bairrosOrdenados[1]}`;
     
-    // Retorna a distância ou -999 se não encontrar
+    // Retorna a distância ou -999 se não encontrar.
     return DISTANCIAS_MANUAIS[chave] !== undefined ? DISTANCIAS_MANUAIS[chave] : -999;
 }
 
@@ -55,7 +55,6 @@ function obterDistanciaNaMatriz(origem, destino) {
 function preencherDatalist() {
     const datalist = document.getElementById('bairros-lista');
     if (datalist) {
-        // Usa apenas os bairros que estão na lista
         BAIRROS_DISPONIVEIS.sort().forEach(bairro => { 
             const option = document.createElement('option');
             option.value = bairro; 
@@ -67,6 +66,7 @@ function preencherDatalist() {
 
 // Função que calcula e exibe o frete
 async function calcularFrete(event) {
+    // Previne que a página recarregue
     event.preventDefault(); 
     
     const nomeColeta = document.getElementById('bairro-coleta-input').value.trim();
@@ -79,7 +79,6 @@ async function calcularFrete(event) {
         return;
     }
     
-    // A validação verifica se o bairro digitado está na lista BAIRROS_DISPONIVEIS
     if (!BAIRROS_DISPONIVEIS.includes(nomeColeta) || !BAIRROS_DISPONIVEIS.includes(nomeEntrega)) {
         resultadoDiv.innerHTML = `<p class="erro">Um ou ambos os bairros digitados não estão na lista de áreas atendidas.</p>`;
         return;
@@ -90,27 +89,27 @@ async function calcularFrete(event) {
         return;
     }
 
-    // 1. OBTÉM A DISTÂNCIA DA MATRIZ INTERNA (SEM API)
+    // OBTÉM A DISTÂNCIA DA MATRIZ INTERNA
     const distanciaKm = obterDistanciaNaMatriz(nomeColeta, nomeEntrega); 
 
-    // Se a distância não for encontrada na matriz
+    // TRATAMENTO DE ERRO: Rota não cadastrada
     if (distanciaKm === -999) {
         resultadoDiv.innerHTML = `<p class="erro">A rota entre ${nomeColeta} e ${nomeEntrega} ainda não foi cadastrada na tabela de preços.</p>`;
         return;
     }
     
-    // 2. APLICA A LÓGICA DE PREÇO FIXO
     const valorFrete = calcularPrecoFixo(distanciaKm);
     
-    // 3. EXIBE O RESULTADO
+    // TRATAMENTO DE ERRO: Fora do limite de 10km
     if (valorFrete === -1) {
         resultadoDiv.innerHTML = `
             <p>Distância Cadastrada: <strong>${distanciaKm.toFixed(2)} KM</strong></p>
             <p class="erro">Esta rota está fora da tabela de fretes (limite: 10 KM).</p>
-        `;
+            `;
         return;
     }
     
+    // EXIBE O RESULTADO FINAL
     resultadoDiv.innerHTML = `
         <p>Distância Cadastrada: <strong>${distanciaKm.toFixed(2)} KM</strong></p>
         <p class="sucesso">Valor do Frete (Fixo): <strong>R$ ${valorFrete.toFixed(2).replace('.', ',')}</strong></p>
@@ -118,12 +117,18 @@ async function calcularFrete(event) {
 }
 
 
-// Evento que GARANTE que tudo funcionará após o carregamento da página
+// Evento que GARANTE que o código é executado SOMENTE após o HTML estar pronto.
 document.addEventListener('DOMContentLoaded', () => {
     preencherDatalist();
 
     const form = document.getElementById('frete-form');
     if (form) {
+        // CONEXÃO CRÍTICA: Liga o evento 'submit' à função 'calcularFrete'
         form.addEventListener('submit', calcularFrete);
+        // Coloquei um log para você verificar que o script carregou
+        console.log("Script carregado e Listener de Evento de Frete anexado com sucesso.");
+    } else {
+        // Se esta mensagem aparecer no F12, o erro está no HTML (id="frete-form")
+        console.error("ERRO GRAVE: Elemento com ID 'frete-form' não foi encontrado. O botão não funcionará.");
     }
 });
