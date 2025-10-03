@@ -12,18 +12,17 @@
         <h1>Calculadora de Frete Guará (API)</h1>
 
         <div class="form-group">
-            <label for="bairro-coleta">Local de Coleta:</label>
-            <select id="bairro-coleta" required>
-                <option value="" disabled selected>Selecione o bairro</option>
-            </select>
+            <label for="bairro-coleta-input">Local de Coleta:</label>
+            <input list="bairros-lista" id="bairro-coleta-input" placeholder="Digite ou selecione o bairro" required>
         </div>
 
         <div class="form-group">
-            <label for="bairro-entrega">Local de Entrega:</label>
-            <select id="bairro-entrega" required>
-                <option value="" disabled selected>Selecione o bairro</option>
-            </select>
+            <label for="bairro-entrega-input">Local de Entrega:</label>
+            <input list="bairros-lista" id="bairro-entrega-input" placeholder="Digite ou selecione o bairro" required>
         </div>
+        
+        <datalist id="bairros-lista">
+            </datalist>
 
         <button onclick="calcularFrete()">Calcular Frete</button>
 
