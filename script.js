@@ -1,165 +1,82 @@
+// js/script.js - Versão Final com APIs Abertas (SEM CHAVE)
 
-document.addEventListener('DOMContentLoaded', () => {
+const TARIFA_BASE = 5.00; // Seu custo fixo por entrega (em Reais)
+const CUSTO_POR_KM = 2.00; // Seu custo por KM rodado (em Reais)
 
-    const WHATSAPP_BASE_URL = 'https://api.whatsapp.com/send?phone=5512982735317&text=';
+// API 1: Nominatim (Geocoding - Conversão de Endereço para Coordenadas)
+async function getCoordinates(bairro) {
+    const query = `${bairro}, Guaratinguetá, SP, Brasil`;
+    const url = `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(query)}&format=json&limit=1`;
+
+    const response = await fetch(url);
+    const data = await response.json();
     
-    // URL DA SUA FUNÇÃO BACKEND NA NETLIFY
-    // Por padrão, usa o caminho local na Netlify
-    let backendUrl = '/.netlify/functions/calcularFrete'; 
+    if (data.length > 0) {
+        // O Nominatim retorna [latitude, longitude]
+        return { lat: parseFloat(data[0].lat), lon: parseFloat(data[0].lon) };
+    }
+    // Lança um erro se o bairro não for encontrado
+    throw new Error(`[ERRO API] Não foi possível localizar as coordenadas do bairro: ${bairro}.`); 
+}
 
-    // Tentativa de carregar a URL salva pelo ADM
-    const storedUrl = localStorage.getItem('backendUrlVSFretes');
-    if (storedUrl) {
-        backendUrl = storedUrl;
+// API 2: OSRM (Routing - Cálculo de Rota Rodoviária)
+async function obterDistanciaReal(origemBairro, destinoBairro) {
+    const coordOrigem = await getCoordinates(origemBairro);
+    const coordDestino = await getCoordinates(destinoBairro);
+    
+    // O OSRM usa o formato: lon,lat;lon,lat
+    const url = `https://router.project-osrm.org/route/v1/driving/
+        ${coordOrigem.lon},${coordOrigem.lat};
+        ${coordDestino.lon},${coordDestino.lat}?overview=false`;
+    
+    // ATENÇÃO: Removemos quebras de linha e espaços extras
+    const cleanedUrl = url.replace(/\s/g, ''); 
+
+    const response = await fetch(cleanedUrl);
+    const data = await response.json();
+    
+    if (data.routes && data.routes.length > 0) {
+        // O OSRM devolve a distância em metros
+        const distanciaMetros = data.routes[0].summary.total_distance; 
+        return distanciaMetros / 1000; // Converte para KM
+    }
+    
+    throw new Error(`[ERRO API] Rota rodoviária não encontrada entre ${origemBairro} e ${destinoBairro}.`);
+}
+
+
+// A FUNÇÃO PRINCIPAL DE CÁLCULO
+async function calcularFrete() {
+    const selectColeta = document.getElementById('bairro-coleta');
+    const selectEntrega = document.getElementById('bairro-entrega');
+    const nomeColeta = selectColeta.value;
+    const nomeEntrega = selectEntrega.value;
+
+    const resultadoDiv = document.getElementById('resultado-frete');
+
+    if (nomeColeta === nomeEntrega) {
+        resultadoDiv.innerHTML = `<p class="erro">A coleta e a entrega não podem ser no mesmo bairro.</p>`;
+        return;
     }
 
-    const itemSelect = document.getElementById('item-select');
-    const itemOutro = document.getElementById('item-outro');
-    const labelOutro = document.getElementById('label-outro');
+    // Exibe mensagem de carregamento enquanto a API trabalha
+    resultadoDiv.innerHTML = `<p class="carregando">Calculando a rota em tempo real...</p>`;
 
-    itemSelect.addEventListener('change', (e) => {
-        if (e.target.value === 'Outro') {
-            itemOutro.style.display = 'block';
-            labelOutro.style.display = 'block';
-            itemOutro.setAttribute('required', 'required');
-        } else {
-            itemOutro.style.display = 'none';
-            labelOutro.style.display = 'none';
-            itemOutro.removeAttribute('required');
-        }
-    });
+    try {
+        // 1. OBTÉM A DISTÂNCIA REAL POR API
+        const distanciaKm = await obterDistanciaReal(nomeColeta, nomeEntrega); 
 
-    // Lógica de Chamada ao Backend (Serverless Function)
-    document.getElementById('calcular-frete-btn').addEventListener('click', async () => {
-        if (!validateForm()) {
-            alert("Por favor, preencha todos os campos obrigatórios (*).");
-            return;
-        }
-
-        const coletaBairro = document.getElementById('coleta-bairro').value.trim().toUpperCase();
-        const entregaBairro = document.getElementById('entrega-bairro').value.trim().toUpperCase();
+        // 2. APLICA A FÓRMULA DE PREÇO
+        const valorFrete = TARIFA_BASE + (distanciaKm * CUSTO_POR_KM);
         
-        const resultadoDiv = document.getElementById('resultado-calculo');
-        document.getElementById('valor-calculado').textContent = 'Calculando...';
-        resultadoDiv.style.display = 'block';
-        resultadoDiv.scrollIntoView({ behavior: 'smooth' });
-
-        try {
-            // Chamada à função Serverless
-            const response = await fetch(backendUrl, {
-                method: 'POST',
-                headers: {
-                    'Content-Type': 'application/json',
-                },
-                body: JSON.stringify({
-                    origem: coletaBairro,
-                    destino: entregaBairro,
-                }),
-            });
-
-            const data = await response.json();
-
-            if (response.ok) {
-                // Sucesso: Exibe os resultados do cálculo
-                document.getElementById('distancia-calculada').textContent = `Distância Estimada: ${data.distancia.toFixed(1)} km`;
-                document.getElementById('valor-calculado').textContent = `R$ ${data.valor.toFixed(2).replace('.', ',')}`;
-            } else {
-                // Erro do Backend
-                document.getElementById('distancia-calculada').textContent = `Erro: ${data.message || 'Falha ao calcular.'}`;
-                document.getElementById('valor-calculado').textContent = `R$ 0,00`;
-                alert(`Erro no Cálculo: ${data.message || 'A função de cálculo pode não estar ativa ou o bairro não foi mapeado.'}`);
-            }
-
-        } catch (error) {
-            console.error('Erro na requisição da API:', error);
-            document.getElementById('distancia-calculada').textContent = 'Erro de Conexão';
-            document.getElementById('valor-calculado').textContent = `R$ 0,00`;
-            alert("Erro de conexão com o servidor de cálculo. Verifique a URL na página ADM.");
-        }
-    });
-
-
-    // Lógica do Botão "Solicitar Frete" (WhatsApp)
-    document.getElementById('solicitar-frete-btn').addEventListener('click', () => {
-        
-        const itemSelecionado = itemSelect.value === 'Outro' ? itemOutro.value : itemSelect.value;
-        const nome = document.getElementById('nome-usuario').value.trim();
-        const horario = document.getElementById('horario-frete').value;
-
-        const coleta = {
-            cep: document.getElementById('coleta-cep').value.trim(),
-            end: document.getElementById('coleta-endereco').value.trim(),
-            num: document.getElementById('coleta-numero').value.trim(),
-            comp: document.getElementById('coleta-complemento').value.trim(),
-            bairro: document.getElementById('coleta-bairro').value.trim(),
-        };
-
-        const entrega = {
-            cep: document.getElementById('entrega-cep').value.trim(),
-            end: document.getElementById('entrega-endereco').value.trim(),
-            num: document.getElementById('entrega-numero').value.trim(),
-            comp: document.getElementById('entrega-complemento').value.trim(),
-            bairro: document.getElementById('entrega-bairro').value.trim(),
-        };
-        
-        const valorFinal = document.getElementById('valor-calculado').textContent;
-        const distanciaFinal = document.getElementById('distancia-calculada').textContent;
-
-
-        let mensagem = `*SOLICITAÇÃO DE FRETE - VS FRETES* %0A%0A`;
-        mensagem += `*1. SOLICITANTE:* ${nome} %0A`;
-        mensagem += `*2. ITEM(NS):* ${itemSelecionado} %0A`;
-        mensagem += `*3. HORÁRIO DESEJADO:* ${horario || 'Não especificado'} %0A%0A`;
-        
-        mensagem += `*4. ENDEREÇO DE COLETA (ORIGEM):*%0A`;
-        mensagem += `- CEP: ${coleta.cep} %0A`;
-        mensagem += `- Endereço: ${coleta.end}, N° ${coleta.num} %0A`;
-        mensagem += `- Bairro: ${coleta.bairro} %0A`;
-        if (coleta.comp) {
-            mensagem += `- Complemento: ${coleta.comp} %0A%0A`;
-        }
-
-        mensagem += `*5. ENDEREÇO DE ENTREGA (DESTINO):*%0A`;
-        mensagem += `- CEP: ${entrega.cep} %0A`;
-        mensagem += `- Endereço: ${entrega.end}, N° ${entrega.num} %0A`;
-        mensagem += `- Bairro: ${entrega.bairro} %0A`;
-        if (entrega.comp) {
-            mensagem += `- Complemento: ${entrega.comp} %0A%0A`;
-        }
-
-        mensagem += `*6. VALOR CALCULADO:* ${valorFinal} %0A`;
-        mensagem += `*7. ESTIMATIVA:* ${distanciaFinal} %0A%0A`;
-        mensagem += `Por favor, confirme a disponibilidade e o valor final.`;
-
-        window.open(WHATSAPP_BASE_URL + mensagem, '_blank');
-    });
-
-    // Lógica do Botão "Nova Simulação"
-    document.getElementById('novo-frete-btn').addEventListener('click', () => {
-        document.getElementById('resultado-calculo').style.display = 'none';
-        document.querySelectorAll('input, select').forEach(input => {
-            if (input.type !== 'submit' && input.type !== 'button') {
-                input.value = '';
-            }
-        });
-        itemOutro.style.display = 'none';
-        labelOutro.style.display = 'none';
-        document.getElementById('nome-usuario').focus();
-    });
-
-    // Função de Validação
-    function validateForm() {
-        const requiredFields = document.querySelectorAll('[required]');
-        let isValid = true;
-        requiredFields.forEach(field => {
-            if (!field.value.trim()) {
-                field.style.border = '2px solid red';
-                isValid = false;
-            } else {
-                field.style.border = '1px solid var(--border-color)';
-            }
-        });
-        return isValid;
+        // 3. EXIBE O RESULTADO
+        resultadoDiv.innerHTML = `
+            <p>Distância Rodoviária: <strong>${distanciaKm.toFixed(2)} KM</strong></p>
+            <p class="sucesso">Valor do Frete: <strong>R$ ${valorFrete.toFixed(2).replace('.', ',')}</strong></p>
+        `;
+    
+    } catch (error) {
+        // Exibe o erro da API ou de localização
+        resultadoDiv.innerHTML = `<p class="erro">Erro no cálculo: ${error.message}</p>`;
     }
-});
-                          
+}
